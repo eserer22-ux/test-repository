@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Hedef Vurma Oyunu</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
+        
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: 'Fredoka One', cursive;
+            overflow: hidden;
+        }
+        
+        h1 {
+            color: #fff;
+            font-size: 2.5rem;
+            text-shadow: 0 0 20px #ff6b6b, 0 0 40px #ff6b6b;
+            margin: 10px 0;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: linear-gradient(to bottom, #87CEEB 0%, #98D8C8 60%, #7CB342 60%, #558B2F 100%);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 4px solid #fff;
+        }
+        
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 1.5rem;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        
+        #lives {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 1.5rem;
+            color: #ff6b6b;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        
+        #cannon {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 60px;
+            z-index: 5;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        
+        #cannon:active {
+            transform: translateX(-50%) scale(0.9);
+        }
+        
+        .target {
+            position: absolute;
+            font-size: 40px;
+            animation: float 2s ease-in-out infinite;
+            z-index: 3;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .projectile {
+            position: absolute;
+            font-size: 30px;
+            z-index: 4;
+            pointer-events: none;
+        }
+        
+        .hit-effect {
+            position: absolute;
+            font-size: 40px;
+            animation: explode 0.5s ease-out forwards;
+            z-index: 6;
+        }
+        
+        @keyframes explode {
+            0% { transform: scale(0); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+        
+        #game-over {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+        }
+        
+        #game-over h2 {
+            color: #ff6b6b;
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+        
+        #final-score {
+            color: #4ECDC4;
+            font-size: 2rem;
+            margin-bottom: 30px;
+        }
+        
+        button {
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            font-family: 'Fredoka One', cursive;
+            background: linear-gradient(135deg, #4ECDC4, #44A08D);
+            border: none;
+            border-radius: 30px;
+            color: #fff;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(78, 205, 196, 0.4);
+            transition: transform 0.2s;
+        }
+        
+        button:hover {
+            transform: scale(1.1);
+        }
+        
+        #instructions {
+            color: #aaa;
+            margin-top: 10px;
+            font-size: 1rem;
+        }
+        
+        .star {
+            position: absolute;
+            font-size: 20px;
+            animation: sparkle 1s ease-in-out infinite;
+        }
+        
+        @keyframes sparkle {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 Hedef Vurma Oyunu</h1>
+    <div id="game-container">
+        <div id="score">Puan: 0</div>
+        <div id="lives">❤️❤️❤️</div>
+        <div id="cannon">🔫</div>
+        <div id="game-over">
+            <h2>Oyun Bitti! 🎉</h2>
+            <div id="final-score">Puanın: 0</div>
+            <button onclick="restartGame()">Tekrar Oyna 🔄</button>
+        </div>
+    </div>
+    <div id="instructions">Tıklayarak ateş et! 🖱️</div>
+
+    <script>
+        const container = document.getElementById('game-container');
+        const cannon = document.getElementById('cannon');
+        const scoreDisplay = document.getElementById('score');
+        const livesDisplay = document.getElementById('lives');
+        const gameOverScreen = document.getElementById('game-over');
+        const finalScoreDisplay = document.getElementById('final-score');
+        
+        let score = 0;
+        let lives = 3;
+        let gameActive = true;
+        let targets = [];
+        let projectiles = [];
+        let targetInterval;
+        let gameLoop;
+        
+        const targets_icons = ['🎈', '🎯', '🎪', '⭐', '🌟', '💫', '🎭', '🎨'];
+        
+        function createTarget() {
+            if (!gameActive) return;
+            
+            const target = document.createElement('div');
+            target.className = 'target';
+            target.textContent = targets_icons[Math.floor(Math.random() * targets_icons.length)];
+            target.style.left = Math.random() * 700 + 50 + 'px';
+            target.style.top = Math.random() * 200 + 50 + 'px';
+            
+            const speed = 1 + Math.random() * 2;
+            const direction = Math.random() > 0.5 ? 1 : -1;
+            
+            targets.push({
+                element: target,
+                speed: speed,
+                direction: direction,
+                x: parseFloat(target.style.left),
+                y: parseFloat(target.style.top)
+            });
+            
+            container.appendChild(target);
+            
+            setTimeout(() => {
+                if (target.parentNode && gameActive) {
+                    removeTarget(target);
+                    loseLife();
+                }
+            }, 5000);
+        }
+        
+        function removeTarget(target) {
+            const index = targets.findIndex(t => t.element === target);
+            if (index > -1) {
+                targets.splice(index, 1);
+            }
+            if (target.parentNode) {
+                target.remove();
+            }
+        }
+        
+        function fire(event) {
+            if (!gameActive) return;
+            
+            const rect = container.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            
+            const projectile = document.createElement('div');
+            projectile.className = 'projectile';
+            projectile.textContent = '⚽';
+            projectile.style.left = '50%';
+            projectile.style.bottom = '80px';
+            container.appendChild(projectile);
+            
+            const angle = Math.atan2(y - (500 - 80), x - 400);
+            const speed = 15;
+            
+            projectiles.push({
+                element: projectile,
+                vx: Math.cos(angle) * speed,
+                vy: -Math.sin(angle) * speed,
+                x: 400,
+                y: 420
+            });
+        }
+        
+        function checkCollision(projectile, target) {
+            const pRect = projectile.element.getBoundingClientRect();
+            const tRect = target.element.getBoundingClientRect();
+            
+            return !(pRect.right < tRect.left || 
+                     pRect.left > tRect.right || 
+                     pRect.bottom < tRect.top || 
+                     pRect.top > tRect.bottom);
+        }
+        
+        function createHitEffect(x, y) {
+            const effect = document.createElement('div');
+            effect.className = 'hit-effect';
+            effect.textContent = '💥';
+            effect.style.left = x + 'px';
+            effect.style.top = y + 'px';
+            container.appendChild(effect);
+            
+            setTimeout(() => effect.remove(), 500);
+        }
+        
+        function update() {
+            if (!gameActive) return;
+            
+            // Update projectiles
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const p = projectiles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.3;
+                
+                p.element.style.left = p.x + 'px';
+                p.element.style.top = p.y + 'px';
+                
+                // Check collision with targets
+                for (let j = targets.length - 1; j >= 0; j--) {
+                    if (checkCollision(p, targets[j])) {
+                        createHitEffect(targets[j].x, targets[j].y);
+                        removeTarget(targets[j].element);
+                        projectiles[i].element.remove();
+                        projectiles.splice(i, 1);
+                        score += 10;
+                        scoreDisplay.textContent = 'Puan: ' + score;
+                        break;
+                    }
+                }
+                
+                // Remove if out of bounds
+                if (p.y > 550 || p.x < -50 || p.x > 850) {
+                    p.element.remove();
+                    projectiles.splice(i, 1);
+                }
+            }
+            
+            // Update targets
+            for (let i = targets.length - 1; i >= 0; i--) {
+                const t = targets[i];
+                t.x += t.speed * t.direction;
+                
+                if (t.x > 700 || t.x < 50) {
+                    t.direction *= -1;
+                }
+                
+                t.element.style.left = t.x + 'px';
+                t.element.style.top = t.y + Math.sin(Date.now() / 500) * 10 + 'px';
+            }
+            
+            gameLoop = requestAnimationFrame(update);
+        }
+        
+        function loseLife() {
+            lives--;
+            livesDisplay.textContent = '❤️'.repeat(lives);
+            
+            container.style.animation = 'shake 0.5s';
+            setTimeout(() => container.style.animation = '', 500);
+            
+            if (lives <= 0) {
+                endGame();
+            }
+        }
+        
+        function endGame() {
+            gameActive = false;
+            clearInterval(targetInterval);
+            cancelAnimationFrame(gameLoop);
+            
+            finalScoreDisplay.textContent = 'Puanın: ' + score;
+            gameOverScreen.style.display = 'flex';
+        }
+        
+        function restartGame() {
+            score = 0;
+            lives = 3;
+            gameActive = true;
+            
+            targets.forEach(t => t.element.remove());
+            projectiles.forEach(p => p.element.remove());
+            targets = [];
+            projectiles = [];
+            
+            scoreDisplay.textContent = 'Puan: 0';
+            livesDisplay.textContent = '❤️❤️❤️';
+            gameOverScreen.style.display = 'none';
+            
+            targetInterval = setInterval(createTarget, 1500);
+            update();
+        }
+        
+        // Event listeners
+        container.addEventListener('click', fire);
+        
+        // Add some decoration
+        for (let i = 0; i < 10; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            star.textContent = '✨';
+            star.style.left = Math.random() * 800 + 'px';
+            star.style.top = Math.random() * 300 + 'px';
+            star.style.animationDelay = Math.random() * 2 + 's';
+            container.appendChild(star);
+        }
+        
+        // Start game
+        targetInterval = setInterval(createTarget, 1500);
+        update();
+        
+        // Add shake animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes shake {
+                0%, 100% { transform: translateX(0); }
+                25% { transform: translateX(-10px); }
+                75% { transform: translateX(10px); }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
